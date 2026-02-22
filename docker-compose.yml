@@ -1,17 +1,22 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16
     container_name: postgres
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    labels:
+      - homepage.group=Pad
+      - homepage.name=PostgreSQL
+      - homepage.icon=postgresql.png
+      - homepage.href=http://j.cognito.ink:5432
+      - homepage.description=Database
     restart: unless-stopped
-    network_mode: host
 
   redis:
     image: redis:alpine
@@ -20,81 +25,115 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    labels:
+      - homepage.group=Pad
+      - homepage.name=Redis
+      - homepage.icon=redis.png
+      - homepage.href=http://j.cognito.ink:6379
+      - homepage.description=Cache
     restart: unless-stopped
     command: redis-server --requirepass ${REDIS_PASSWORD} --save 60 1 --loglevel warning
-    network_mode: host
 
   keycloak:
     image: quay.io/keycloak/keycloak:25.0
     container_name: keycloak
     command: start
+    ports:
+      - ${KEYCLOAK_PORT}:8080
     environment:
-      KC_HOSTNAME: localhost
+      KC_HOSTNAME: padauth.cognito.ink
       KC_HOSTNAME_PORT: ${KEYCLOAK_PORT}
       KC_HTTP_ENABLED: "true"
       KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
       KC_HOSTNAME_STRICT_HTTPS: "false"
-      KC_HOSTNAME_URL: http://localhost:${KEYCLOAK_PORT}
-      KC_HOSTNAME_ADMIN_URL: http://localhost:${KEYCLOAK_PORT}
+      KC_HOSTNAME_URL: http://padauth.cognito.ink
+      KC_HOSTNAME_ADMIN_URL: http://padauth.cognito.ink
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       KC_PROXY: "edge"
       PROXY_ADDRESS_FORWARDING: "true"
       KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://localhost:5432/${POSTGRES_DB}
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
       KC_DB_USERNAME: ${POSTGRES_USER}
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+    labels:
+      - homepage.group=Pad
+      - homepage.name=Keycloak
+      - homepage.icon=keycloak.png
+      - homepage.href=https://padauth.cognito.ink
+      - homepage.description=Identity and Access Management
     restart: unless-stopped
-    network_mode: host
 
   coder:
     image: ghcr.io/coder/coder:latest
     container_name: coder
+    ports:
+      - ${CODER_PORT}:7080
     environment:
-      CODER_ACCESS_URL: http://localhost:${CODER_PORT}
-      CODER_OIDC_ISSUER_URL: http://localhost:8080/realms/${OIDC_REALM}
+      CODER_ACCESS_URL: https://padcoder.cognito.ink
+      CODER_WILDCARD_ACCESS_URL: "*.padcoder.cognito.ink"
+      CODER_OIDC_ISSUER_URL: https://padauth.cognito.ink/realms/${OIDC_REALM}
       CODER_OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
       CODER_OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
       CODER_OIDC_SIGN_IN_TEXT: "Sign in for pad"
       CODER_ADDITIONAL_CSP_POLICY: ${CODER_ADDITIONAL_CSP_POLICY}
       CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLED: "false"
-      CODER_PG_CONNECTION_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}?sslmode=disable
-      CODER_ADDRESS: 0.0.0.0:7080
+      CODER_PG_CONNECTION_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       CODER_OIDC_IGNORE_EMAIL_VERIFIED: "true"
+      CODER_HTTP_ADDRESS: 0.0.0.0:${CODER_PORT}
+    command:
+      - --dangerous-allow-path-app-sharing
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     group_add:
       - ${DOCKER_GROUP_ID}
+    labels:
+      - homepage.group=Pad
+      - homepage.name=Coder
+      - homepage.icon=coder.png
+      - homepage.href=https://padcoder.cognito.ink
+      - homepage.description=Remote Development
     restart: unless-stopped
-    network_mode: host
 
   pad:
     image: ghcr.io/pad-ws/pad.ws:main
     container_name: pad
+    ports:
+      - ${APP_PORT}:8000
     environment:
       - STATIC_DIR=/app/frontend/dist
       - ASSETS_DIR=/app/frontend/dist/assets
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID}
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
-      - OIDC_SERVER_URL=http://localhost:${KEYCLOAK_PORT}
+      - OIDC_SERVER_URL=https://padauth.cognito.ink
       - OIDC_REALM=${OIDC_REALM}
       - REDIRECT_URI=${REDIRECT_URI}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_HOST=localhost
+      - POSTGRES_HOST=postgres
       - POSTGRES_PORT=${POSTGRES_PORT}
       - REDIS_HOST=${REDIS_HOST}
       - REDIS_PORT=${REDIS_PORT}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - CODER_API_KEY=${CODER_API_KEY}
-      - CODER_URL=http://localhost:${CODER_PORT}
+      - CODER_URL=https://padcoder.cognito.ink
       - CODER_TEMPLATE_ID=${CODER_TEMPLATE_ID}
       - CODER_DEFAULT_ORGANIZATION=${CODER_DEFAULT_ORGANIZATION}
       - API_WORKERS=${API_WORKERS}
       - FRONTEND_URL=${FRONTEND_URL}
-    network_mode: host
+    labels:
+      - homepage.group=Pad
+      - homepage.name=Pad
+      - homepage.icon=code-server.png
+      - homepage.href=https://pad.cognito.ink
+      - homepage.description=pad.ws
+
+networks:
+  default:
+    name: pad-ws-network
 
 volumes:
   postgres_data:
   redis_data:
+
